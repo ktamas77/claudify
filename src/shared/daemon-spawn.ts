@@ -25,10 +25,10 @@ async function isDaemonHealthy(): Promise<boolean> {
 
 function spawnDaemon(): void {
   ensureDirs();
-  const claudifyBin = locateBin();
+  const claudemeshBin = locateBin();
   const out = openSync(paths.daemonLog, "a");
   const err = openSync(paths.daemonLog, "a");
-  const child = spawn(process.execPath, [claudifyBin, "daemon"], {
+  const child = spawn(process.execPath, [claudemeshBin, "daemon"], {
     detached: true,
     stdio: ["ignore", out, err],
     env: process.env,
@@ -52,7 +52,7 @@ async function waitForDaemon(): Promise<void> {
 
 function locateBin(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "bin", "claudify.js");
+  return join(here, "..", "bin", "claudemesh.js");
 }
 
 function sleep(ms: number): Promise<void> {

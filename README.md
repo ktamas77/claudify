@@ -1,27 +1,29 @@
-# claudify
+# claudemesh
 
-A local side-channel between [Claude Code](https://claude.com/claude-code) sessions running on the same machine. Each session gets a short ID, can list other live sessions, send them messages, read their conversation history — and, when launched via `claudify`, **wake up and act on incoming messages in realtime, even when fully idle.** No cloud, no network exposure, no auth.
+**Let your local [Claude Code](https://claude.com/claude-code) sessions find and talk to each other — in realtime, with zero compromises to the Claude Code CLI you already use.**
+
+Run `claude` in three folders. Today they don't know the others exist. Install claudemesh and they do: each session gets a stable ID, can list its peers, send them tasks that wake them up the instant they arrive, and read each other's conversation history — all over a tiny localhost daemon. No cloud, no network exposure, no auth, no behavior changes inside `claude` itself. Stop using it any time and the original `claude` binary is exactly as it was.
 
 ```bash
-claudify          # launch claude inside the realtime supervisor
-claudify -c       # claude -c (continue most recent session)
-claudify --resume # any other claude flag works the same
+claudemesh          # launch claude inside the realtime supervisor
+claudemesh -c       # claude -c (continue most recent session)
+claudemesh --resume # any other claude flag works the same
 ```
 
-Anything that's not a recognized subcommand (`list`, `send`, `install`, …) is forwarded straight to the wrapped `claude` binary, so you can use `claudify` as a drop-in replacement for `claude` without aliasing or shadowing the original.
+Anything that isn't a recognized subcommand (`list`, `send`, `install`, …) is forwarded straight to the wrapped `claude` binary, so `claudemesh` is a drop-in alternative entrypoint to `claude` — no alias, no shadow, no plugin install inside Claude. You get every feature of Claude Code (sessions, hooks, plugins, MCP, sub-agents, slash commands, IDE integration) plus the inter-instance side channel.
 
 > Status: v0.2 — realtime PTY supervisor + folder-name addressing + idle tracking.
 
 ## Why
 
-You probably run `claude` in several folders at once. They have no idea about each other. Claudify gives every session a stable identity and a realtime side channel:
+You probably run `claude` in several folders at once. They have no idea about each other. Claudemesh gives every session a stable identity and a realtime side channel:
 
-- **List**: which other Claudes are running, where, and for how long.
-- **Message**: hand a task to another Claude (`claudify send api-service "rerun the migration check"`) — the recipient acts on it immediately if launched via `claudify`, or on its next turn otherwise.
-- **Read**: peek at another instance's history (recent turns, search, fetch a specific turn).
+- **Find peers**: list which other Claudes are running on this machine, where, and for how long.
+- **Hand off work**: `claudemesh send api-service "rerun the migration check"` — the recipient wakes up and acts on it within a second if it was launched via `claudemesh`, or on its next user prompt otherwise.
+- **Inspect**: peek at another instance's history (recent turns, search, fetch a specific turn) when you need cross-session context.
 - **Notice**: the receiver's status line ticks up (`✉2`) when messages are waiting.
 
-Everything is purely additive. The original `claude` binary is never modified or shadowed — `claudify` is just an alternative entrypoint that wraps it.
+Everything is purely additive. Hooks and MCP are installed at the user level (`~/.claude/`), so existing project-level Claude Code config is untouched. Removing claudemesh is one command (`claudemesh uninstall`) and leaves no trace inside `claude` itself.
 
 ## How it works
 
@@ -30,8 +32,8 @@ There are two layers, and you can use either independently:
 ```
    ┌─────────────── one machine ───────────────┐
    │                                            │
-   │  ┌── claudify (PTY supervisor) ────────┐   │  ← Layer 2: realtime injection
-   │  │   ↑↓ proxy user terminal ↔ claude  │   │      (when launched via `claudify`)
+   │  ┌── claudemesh (PTY supervisor) ────────┐   │  ← Layer 2: realtime injection
+   │  │   ↑↓ proxy user terminal ↔ claude  │   │      (when launched via `claudemesh`)
    │  │   subscribes to daemon /events      │   │
    │  │   writes "[inbox]\n" to PTY master  │   │
    │  └─┬─────────────────────────────────┬─┘   │
@@ -40,11 +42,11 @@ There are two layers, and you can use either independently:
    │  │   SessionStart/End hooks             │  │      (works with bare `claude` too)
    │  │   UserPromptSubmit hook (drains inbox)│ │
    │  │   Stop hook (blocks on tasks)        │  │
-   │  │   MCP server: claudify               │  │
+   │  │   MCP server: claudemesh               │  │
    │  └──────────────────────────────────────┘  │
    │                                            │
    │              ┌─────────────────────────┐   │
-   │              │  claudify daemon        │   │
+   │              │  claudemesh daemon        │   │
    │              │  HTTP @ 127.0.0.1:7878  │   │
    │              │  • registry + idle flag │   │
    │              │  • inboxes              │   │
@@ -54,11 +56,11 @@ There are two layers, and you can use either independently:
    └────────────────────────────────────────────┘
 ```
 
-The daemon binds to `127.0.0.1` only. State persists to `~/.claudify/`.
+The daemon binds to `127.0.0.1` only. State persists to `~/.claudemesh/`.
 
 ### Realtime via the supervisor
 
-`claudify` spawns `claude` inside a PTY (via `node-pty`) and proxies your terminal byte-for-byte to/from it — so it looks and feels exactly like running `claude` directly. Any flag you pass to `claudify` (e.g. `claudify -c`, `claudify --resume <id>`) is forwarded to claude. In parallel the supervisor long-polls the daemon for new inbox messages addressed to this session. When one arrives:
+`claudemesh` spawns `claude` inside a PTY (via `node-pty`) and proxies your terminal byte-for-byte to/from it — so it looks and feels exactly like running `claude` directly. Any flag you pass to `claudemesh` (e.g. `claudemesh -c`, `claudemesh --resume <id>`) is forwarded to claude. In parallel the supervisor long-polls the daemon for new inbox messages addressed to this session. When one arrives:
 
 1. Wait for the daemon's `idle` flag on this session to be `true` (the `Stop` hook sets it when claude finishes a turn; the `UserPromptSubmit` hook clears it).
 2. Wait for ≥500ms of stdin silence (so we don't corrupt typing).
@@ -92,24 +94,24 @@ What you lose is the **wake-up for fully-idle claude**: messages that arrive aft
 > Requires Node ≥ 20. The supervisor needs `node-pty` (native, prebuilt for darwin/linux/win).
 
 ```bash
-npm i -g @ktamas77/claudify
-claudify install
+npm i -g @ktamas77/claudemesh
+claudemesh install
 ```
 
-`claudify install` patches two files (each backed up first):
+`claudemesh install` patches two files (each backed up first):
 
 - `~/.claude/settings.json` — adds the four hooks and the status-line script.
-- `~/.claude.json` — adds the `claudify` MCP server under `mcpServers`.
+- `~/.claude.json` — adds the `claudemesh` MCP server under `mcpServers`.
 
-After this, just use `claudify` everywhere you'd type `claude`:
+After this, just use `claudemesh` everywhere you'd type `claude`:
 
 ```bash
-claudify              # interactive session in the supervisor
-claudify -c           # resume the most recent session
-claudify --resume xyz # resume a specific session id
+claudemesh              # interactive session in the supervisor
+claudemesh -c           # resume the most recent session
+claudemesh --resume xyz # resume a specific session id
 ```
 
-The original `claude` binary is untouched — both work side by side. Use `claudify` when you want realtime inbox delivery; use `claude` when you don't (you still get the inbox + ✉ status line, just no auto-wake).
+The original `claude` binary is untouched — both work side by side. Use `claudemesh` when you want realtime inbox delivery; use `claude` when you don't (you still get the inbox + ✉ status line, just no auto-wake).
 
 If you'd rather invoke the supervisor under a shorter name, drop a tiny script anywhere on your PATH:
 
@@ -117,22 +119,22 @@ If you'd rather invoke the supervisor under a shorter name, drop a tiny script a
 mkdir -p ~/.local/bin
 cat > ~/.local/bin/clc <<'EOF'
 #!/bin/sh
-exec claudify "$@"
+exec claudemesh "$@"
 EOF
 chmod +x ~/.local/bin/clc
 ```
 
-Now `clc -c` is `claudify -c` is `claude -c`-with-supervisor.
+Now `clc -c` is `claudemesh -c` is `claude -c`-with-supervisor.
 
 ```bash
-claudify uninstall   # reverses the install
+claudemesh uninstall   # reverses the install
 ```
 
-If `node-pty` fails to install (older toolchain), bare `claudify` errors out with a fix-it message but the subcommands (`claudify list`, `claudify send`, etc.) still work.
+If `node-pty` fails to install (older toolchain), bare `claudemesh` errors out with a fix-it message but the subcommands (`claudemesh list`, `claudemesh send`, etc.) still work.
 
 ### Adding the badge to an existing status line
 
-If you already have a custom `statusLine` script in `~/.claude/settings.json`, `claudify install` detects it and **leaves it alone** rather than clobbering your customizations. To add the `[abc12345 · 3 peers · ✉2]` badge yourself, capture stdin once and pipe it to `claudify statusline`:
+If you already have a custom `statusLine` script in `~/.claude/settings.json`, `claudemesh install` detects it and **leaves it alone** rather than clobbering your customizations. To add the `[abc12345 · 3 peers · ✉2]` badge yourself, capture stdin once and pipe it to `claudemesh statusline`:
 
 ```bash
 #!/bin/bash
@@ -141,37 +143,37 @@ input=$(cat)
 # ... your existing parts ...
 out="$host | $model | $ctx | $folder"
 
-# Claudify badge (only renders if claudify is installed and a session is registered)
-if command -v claudify >/dev/null 2>&1; then
-  badge=$(printf '%s' "$input" | claudify statusline 2>/dev/null)
+# Claudemesh badge (only renders if claudemesh is installed and a session is registered)
+if command -v claudemesh >/dev/null 2>&1; then
+  badge=$(printf '%s' "$input" | claudemesh statusline 2>/dev/null)
   [ -n "$badge" ] && out="$out | $badge"
 fi
 
 printf '%s\n' "$out"
 ```
 
-`claudify statusline` reads the same JSON Claude Code already pipes to your script (it needs `session_id`), prints `[id · peers · ✉N]`, and exits silently with no output if the daemon is down or the session isn't registered yet.
+`claudemesh statusline` reads the same JSON Claude Code already pipes to your script (it needs `session_id`), prints `[id · peers · ✉N]`, and exits silently with no output if the daemon is down or the session isn't registered yet.
 
 ## CLI
 
 ```
-claudify [claude args...]              launch claude inside the realtime supervisor
-                                       (e.g. `claudify -c`, `claudify --resume <id>`)
-claudify list                          show all live Claude sessions
-claudify whoami                        this shell's parent claude (best-effort by ppid)
-claudify send <target> <message>       send a task message; target = id or folder name
-claudify history <target> [-n N]       tail another session's transcript
-claudify search <target> <query>       search another session's transcript
-claudify status                        daemon health + instance count
-claudify install / uninstall           patch / unpatch ~/.claude config
-claudify help                          show subcommand help
-claudify run [claude args...]          explicit form of the default supervisor launch
-claudify daemon / mcp / hook / statusline   internal (used by Claude Code)
+claudemesh [claude args...]              launch claude inside the realtime supervisor
+                                       (e.g. `claudemesh -c`, `claudemesh --resume <id>`)
+claudemesh list                          show all live Claude sessions
+claudemesh whoami                        this shell's parent claude (best-effort by ppid)
+claudemesh send <target> <message>       send a task message; target = id or folder name
+claudemesh history <target> [-n N]       tail another session's transcript
+claudemesh search <target> <query>       search another session's transcript
+claudemesh status                        daemon health + instance count
+claudemesh install / uninstall           patch / unpatch ~/.claude config
+claudemesh help                          show subcommand help
+claudemesh run [claude args...]          explicit form of the default supervisor launch
+claudemesh daemon / mcp / hook / statusline   internal (used by Claude Code)
 ```
 
-Anything that's not a recognized subcommand from this list is treated as args for the supervisor and forwarded to claude — that's how `claudify -c` and friends work.
+Anything that's not a recognized subcommand from this list is treated as args for the supervisor and forwarded to claude — that's how `claudemesh -c` and friends work.
 
-`CLAUDIFY_CLAUDE_BIN` overrides which binary the supervisor launches (default: `claude` on PATH). Useful if you have multiple Claude Code builds installed.
+`CLAUDEMESH_CLAUDE_BIN` overrides which binary the supervisor launches (default: `claude` on PATH). Useful if you have multiple Claude Code builds installed.
 
 ### Addressing sessions: id or folder name
 
@@ -182,15 +184,15 @@ Anywhere a target is expected — CLI commands and MCP tools alike — you can p
 
 ```bash
 # These two are equivalent when one live session is running in /Users/me/dev/api-service
-claudify send 7k3p9q2x "rerun the migration check"
-claudify send api-service "rerun the migration check"
+claudemesh send 7k3p9q2x "rerun the migration check"
+claudemesh send api-service "rerun the migration check"
 ```
 
 If the folder name matches more than one live session (e.g. `~/orgA/api` and `~/orgB/api` both running), the resolver errors out with both `claude_id`s and full paths so you can disambiguate by id. If nothing matches, it prints all live sessions.
 
 ## MCP tools
 
-The `claudify` MCP server exposes the following inside every `claude` session. Wherever a tool takes a target session, you can pass either an 8-char `claude_id` or a folder basename (see [Addressing sessions](#addressing-sessions-id-or-folder-name)).
+The `claudemesh` MCP server exposes the following inside every `claude` session. Wherever a tool takes a target session, you can pass either an 8-char `claude_id` or a folder basename (see [Addressing sessions](#addressing-sessions-id-or-folder-name)).
 
 | Tool                                       | Purpose                                                                                                                                           |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -207,7 +209,7 @@ The `claudify` MCP server exposes the following inside every `claude` session. W
 Two kinds:
 
 - **task** (default) — receiver acts on the body as if you typed it. Three delivery paths, in priority order:
-  1. **Supervisor injection (realtime)** — if the receiver was launched via `claudify`, the supervisor writes `[inbox]\n` into the PTY the moment the message arrives and the receiver is idle + not actively typing. Sub-second wake-up.
+  1. **Supervisor injection (realtime)** — if the receiver was launched via `claudemesh`, the supervisor writes `[inbox]\n` into the PTY the moment the message arrives and the receiver is idle + not actively typing. Sub-second wake-up.
   2. **Stop hook (between turns)** — if the receiver is _just finishing_ a turn when the message lands, the `Stop` hook blocks the stop and feeds the message in as the continuation directive.
   3. **UserPromptSubmit (next prompt)** — if neither of the above caught it (bare `claude`, fully idle), the message sits in the inbox until the user submits any prompt to that receiver, at which point it's appended as additional context for that turn.
 - **note** — surfaces only via path #3 (next prompt). Doesn't block stops, doesn't wake the model.
@@ -228,14 +230,14 @@ The supervisor reads this flag before injecting, ensuring it never types into a 
 
 - Daemon binds to `127.0.0.1` only — never `0.0.0.0`. Single-user assumption matches the rest of `~/.claude`.
 - `read_history` redacts large tool results / file contents above a per-line byte cap by default. Pass `redact: false` (or use `get_turn`) for raw.
-- Hooks fail open: any daemon error is logged and the hook exits 0. Claude Code keeps working with no claudify integration if the daemon is down.
+- Hooks fail open: any daemon error is logged and the hook exits 0. Claude Code keeps working with no claudemesh integration if the daemon is down.
 - The supervisor never writes to the PTY without (a) idle flag set and (b) ≥500ms stdin silence — so it can't corrupt input you're typing.
 
 ## Development
 
 ```bash
-git clone git@github.com:ktamas77/claudify.git
-cd claudify
+git clone git@github.com:ktamas77/claudemesh.git
+cd claudemesh
 npm install
 npm run build       # tsc → dist/ (also chmod +x the bin)
 npm run dev         # tsc --watch
@@ -251,9 +253,9 @@ Pre-commit (husky) runs `typecheck → test → lint-staged`. A broken type or f
 
 ```
 src/
-├── bin/claudify.ts          # entrypoint, dispatches all subcommands
+├── bin/claudemesh.ts          # entrypoint, dispatches all subcommands
 ├── cli/
-│   ├── run.ts               # PTY supervisor (default `claudify` entrypoint)
+│   ├── run.ts               # PTY supervisor (default `claudemesh` entrypoint)
 │   ├── send.ts, history.ts, search.ts, list.ts, whoami.ts, status.ts
 │   ├── install.ts, statusline.ts
 │   └── ...
@@ -276,7 +278,7 @@ src/
 - [x] Phase 3 — task-mode wake-up, `read_history` / `search_history` / `get_turn`
 - [x] Phase 4 — liveness sweep + lazy daemon autostart
 - [x] Phase 5 — folder-name addressing, sharper imperative inbox prompts
-- [x] Phase 6 — `claudify` PTY supervisor for realtime injection (with subcommand passthrough)
+- [x] Phase 6 — `claudemesh` PTY supervisor for realtime injection (with subcommand passthrough)
 - [ ] Real-world soak across many concurrent supervisor sessions
 - [ ] Reply chains: auto-set `from` when a recipient calls `send_message` after waking
 - [ ] Optional desktop notification fallback for un-supervised idle sessions

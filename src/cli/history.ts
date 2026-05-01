@@ -15,7 +15,7 @@ export async function runHistory(args: string[]): Promise<void> {
     }
   }
   if (!target) {
-    console.error("usage: claudify history <id-or-folder-name> [-n N] [--raw]");
+    console.error("usage: claudemesh history <id-or-folder-name> [-n N] [--raw]");
     process.exitCode = 2;
     return;
   }

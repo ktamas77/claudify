@@ -16,7 +16,7 @@ export async function runSearch(args: string[]): Promise<void> {
     }
   }
   if (!target || !query) {
-    console.error("usage: claudify search <id-or-folder-name> <query> [--context N]");
+    console.error("usage: claudemesh search <id-or-folder-name> <query> [--context N]");
     process.exitCode = 2;
     return;
   }

@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 
-const ROOT = join(homedir(), ".claudify");
+const ROOT = join(homedir(), ".claudemesh");
 
 export const paths = {
   root: ROOT,

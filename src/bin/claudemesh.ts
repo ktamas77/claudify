@@ -15,14 +15,14 @@ import { runStatus } from "../cli/status.js";
 import { runStatusLine } from "../cli/statusline.js";
 import { runChild } from "../cli/run.js";
 
-const HELP = `claudify — realtime side-channel for Claude Code sessions
+const HELP = `claudemesh — realtime side-channel for Claude Code sessions
 
 Default behavior:
-  claudify [claude args...]  launch \`claude\` inside the realtime PTY
+  claudemesh [claude args...]  launch \`claude\` inside the realtime PTY
                              supervisor (inbox messages get injected the
                              moment they arrive, even when claude is idle).
-                             E.g. \`claudify -c\` resumes the latest session.
-                             Set CLAUDIFY_CLAUDE_BIN to override the claude
+                             E.g. \`claudemesh -c\` resumes the latest session.
+                             Set CLAUDEMESH_CLAUDE_BIN to override the claude
                              binary used (default: \`claude\` on PATH).
 
 Subcommands:
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
     return;
   }
   // Anything that isn't a recognized subcommand is forwarded to claude.
-  // This makes `claudify -c`, `claudify --version`, `claudify --resume <id>`
+  // This makes `claudemesh -c`, `claudemesh --version`, `claudemesh --resume <id>`
   // work the same as `claude -c`, etc.
   if (!KNOWN_SUBCOMMANDS.has(cmd)) {
     await runChild([cmd, ...rest]);
@@ -152,6 +152,6 @@ async function runHook(event: string | undefined): Promise<void> {
 
 main().catch((err: unknown) => {
   const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
-  console.error(`[claudify] ${msg}`);
+  console.error(`[claudemesh] ${msg}`);
   process.exit(1);
 });

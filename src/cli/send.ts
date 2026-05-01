@@ -23,7 +23,7 @@ export async function runSend(args: string[]): Promise<void> {
   }
   const body = bodyParts.join(" ").trim();
   if (!target || !body) {
-    console.error("usage: claudify send <id-or-folder-name> <message...> [--note] [--from <id>]");
+    console.error("usage: claudemesh send <id-or-folder-name> <message...> [--note] [--from <id>]");
     process.exitCode = 2;
     return;
   }

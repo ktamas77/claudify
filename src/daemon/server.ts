@@ -43,7 +43,7 @@ export async function startDaemon(): Promise<DaemonHandle> {
   });
 
   const onSignal = (signal: NodeJS.Signals): void => {
-    console.error(`[claudify-daemon] received ${signal}, shutting down`);
+    console.error(`[claudemesh-daemon] received ${signal}, shutting down`);
     clearInterval(sweepTimer);
     waiters.closeAll();
     server.close(() => process.exit(0));
@@ -51,7 +51,7 @@ export async function startDaemon(): Promise<DaemonHandle> {
   process.on("SIGINT", onSignal);
   process.on("SIGTERM", onSignal);
 
-  console.error(`[claudify-daemon] listening on http://${cfg.host}:${cfg.port}`);
+  console.error(`[claudemesh-daemon] listening on http://${cfg.host}:${cfg.port}`);
 
   return {
     close(): Promise<void> {

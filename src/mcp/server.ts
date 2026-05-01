@@ -13,7 +13,7 @@ import type { MessageKind } from "../shared/types.js";
 const TOOLS: Tool[] = [
   {
     name: "whoami",
-    description: "Return this Claude session's claudify id, cwd, and start time.",
+    description: "Return this Claude session's claudemesh id, cwd, and start time.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -140,7 +140,7 @@ async function resolveSelf(): Promise<SelfRef> {
     }
   }
   throw new Error(
-    `claudify could not resolve its own session via parent pid ${ppid}. Is the SessionStart hook installed?`,
+    `claudemesh could not resolve its own session via parent pid ${ppid}. Is the SessionStart hook installed?`,
   );
 }
 
@@ -162,7 +162,7 @@ function fail(message: string): {
 
 export async function runMcpServer(): Promise<void> {
   const server = new Server(
-    { name: "claudify", version: "0.1.0" },
+    { name: "claudemesh", version: "0.1.0" },
     { capabilities: { tools: {} } },
   );
 

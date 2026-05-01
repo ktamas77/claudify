@@ -1,16 +1,16 @@
 {
-  "name": "@ktamas77/claudify",
+  "name": "@ktamas77/claudemesh",
   "version": "0.1.0",
   "description": "Local side-channel between Claude Code instances: discover, message, and read other claude CLI sessions on the same machine.",
   "license": "MIT",
   "author": "Tamas Kalman",
-  "homepage": "https://github.com/ktamas77/claudify",
+  "homepage": "https://github.com/ktamas77/claudemesh",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ktamas77/claudify.git"
+    "url": "git+https://github.com/ktamas77/claudemesh.git"
   },
   "bugs": {
-    "url": "https://github.com/ktamas77/claudify/issues"
+    "url": "https://github.com/ktamas77/claudemesh/issues"
   },
   "keywords": [
     "claude",
@@ -24,7 +24,7 @@
     "node": ">=20"
   },
   "bin": {
-    "claudify": "dist/bin/claudify.js"
+    "claudemesh": "dist/bin/claudemesh.js"
   },
   "files": [
     "dist",
@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "postbuild": "chmod +x dist/bin/claudify.js",
+    "postbuild": "chmod +x dist/bin/claudemesh.js",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "lint": "eslint src",

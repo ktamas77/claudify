@@ -65,7 +65,7 @@ describe("resolveTargetId", () => {
 
   it("throws a different message when there are no live sessions at all", async () => {
     listMock.mockResolvedValue([]);
-    await expect(resolveTargetId("anything")).rejects.toThrow(/no live claudify sessions/);
+    await expect(resolveTargetId("anything")).rejects.toThrow(/no live claudemesh sessions/);
   });
 
   it("throws with disambiguation when a folder name matches multiple sessions", async () => {

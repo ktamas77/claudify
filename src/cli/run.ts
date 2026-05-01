@@ -18,10 +18,10 @@ export async function runChild(args: string[]): Promise<void> {
     ({ spawn: ptySpawn } = await import("node-pty"));
   } catch (err) {
     console.error(
-      "[claudify run] node-pty failed to load. The PTY supervisor needs node-pty (a native module).",
+      "[claudemesh run] node-pty failed to load. The PTY supervisor needs node-pty (a native module).",
     );
     console.error(`  underlying error: ${(err as Error).message}`);
-    console.error("  Try: cd $(npm root -g)/@ktamas77/claudify && npm rebuild node-pty");
+    console.error("  Try: cd $(npm root -g)/@ktamas77/claudemesh && npm rebuild node-pty");
     console.error(
       "  Meanwhile you can keep using bare `claude`; hooks + MCP + status line still work,",
     );
@@ -30,14 +30,14 @@ export async function runChild(args: string[]): Promise<void> {
     return;
   }
 
-  const claudeBinName = process.env.CLAUDIFY_CLAUDE_BIN ?? "claude";
+  const claudeBinName = process.env.CLAUDEMESH_CLAUDE_BIN ?? "claude";
   let claudeBinAbs: string;
   try {
     claudeBinAbs = resolveBin(claudeBinName);
   } catch (err) {
-    console.error(`[claudify run] ${(err as Error).message}`);
+    console.error(`[claudemesh run] ${(err as Error).message}`);
     console.error(
-      `  Set CLAUDIFY_CLAUDE_BIN to the absolute path of the claude binary if it's not on PATH.`,
+      `  Set CLAUDEMESH_CLAUDE_BIN to the absolute path of the claude binary if it's not on PATH.`,
     );
     process.exitCode = 127;
     return;
@@ -57,9 +57,9 @@ export async function runChild(args: string[]): Promise<void> {
   try {
     child = ptySpawn(claudeBinAbs, args, { name: "xterm-256color", cols, rows, cwd, env });
   } catch (err) {
-    console.error(`[claudify run] failed to spawn ${claudeBinAbs}: ${(err as Error).message}`);
+    console.error(`[claudemesh run] failed to spawn ${claudeBinAbs}: ${(err as Error).message}`);
     console.error(
-      `  Try running ${claudeBinAbs} directly to see the real error, or set CLAUDIFY_CLAUDE_BIN to a different binary.`,
+      `  Try running ${claudeBinAbs} directly to see the real error, or set CLAUDEMESH_CLAUDE_BIN to a different binary.`,
     );
     process.exitCode = 1;
     return;

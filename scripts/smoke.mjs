@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const BIN = join(__dirname, "..", "dist", "bin", "claudify.js");
+const BIN = join(__dirname, "..", "dist", "bin", "claudemesh.js");
 
 function call(method, path, body) {
   return new Promise((resolve, reject) => {

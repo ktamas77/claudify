@@ -19,7 +19,7 @@ export async function resolveTargetId(idOrName: string): Promise<string> {
   }
 
   if (instances.length === 0) {
-    throw new Error(`no live claudify sessions registered`);
+    throw new Error(`no live claudemesh sessions registered`);
   }
   throw new Error(
     `no live session matches "${idOrName}". Live sessions:\n${formatCandidates(instances)}`,

@@ -20,5 +20,5 @@ export async function readHookInput(): Promise<HookInput> {
 
 export function logHookError(event: string, err: unknown): void {
   const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
-  console.error(`[claudify-hook:${event}] ${msg}`);
+  console.error(`[claudemesh-hook:${event}] ${msg}`);
 }
