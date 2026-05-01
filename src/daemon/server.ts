@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { Registry } from "./registry.js";
 import { InboxStore } from "./inbox.js";
+import { Waiters } from "./waiters.js";
 import { startLivenessSweep } from "./liveness.js";
 import { loadConfig } from "../shared/config.js";
 import { readTranscript, searchTranscript, getTurn } from "../shared/transcript.js";
@@ -9,11 +10,15 @@ import type { InstanceRecord, MessageKind } from "../shared/types.js";
 interface RouteContext {
   registry: Registry;
   inbox: InboxStore;
+  waiters: Waiters;
   req: IncomingMessage;
   res: ServerResponse;
   url: URL;
   body: unknown;
 }
+
+const DEFAULT_EVENTS_TIMEOUT_MS = 25_000;
+const MAX_EVENTS_TIMEOUT_MS = 55_000;
 
 export interface DaemonHandle {
   close(): Promise<void>;
@@ -23,11 +28,12 @@ export async function startDaemon(): Promise<DaemonHandle> {
   const cfg = loadConfig();
   const registry = new Registry();
   const inbox = new InboxStore();
+  const waiters = new Waiters();
   syncPendingCounts(registry, inbox);
   const sweepTimer = startLivenessSweep(registry);
 
   const server = createServer((req, res) => {
-    handle(req, res, registry, inbox).catch((err: unknown) => {
+    handle(req, res, registry, inbox, waiters).catch((err: unknown) => {
       sendJson(res, 500, { error: (err as Error).message });
     });
   });
@@ -39,6 +45,7 @@ export async function startDaemon(): Promise<DaemonHandle> {
   const onSignal = (signal: NodeJS.Signals): void => {
     console.error(`[claudify-daemon] received ${signal}, shutting down`);
     clearInterval(sweepTimer);
+    waiters.closeAll();
     server.close(() => process.exit(0));
   };
   process.on("SIGINT", onSignal);
@@ -49,6 +56,7 @@ export async function startDaemon(): Promise<DaemonHandle> {
   return {
     close(): Promise<void> {
       clearInterval(sweepTimer);
+      waiters.closeAll();
       return new Promise((resolve) => server.close(() => resolve()));
     },
   };
@@ -59,10 +67,11 @@ async function handle(
   res: ServerResponse,
   registry: Registry,
   inbox: InboxStore,
+  waiters: Waiters,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const body = await readBody(req);
-  const ctx: RouteContext = { registry, inbox, req, res, url, body };
+  const ctx: RouteContext = { registry, inbox, waiters, req, res, url, body };
 
   if (req.method === "GET" && url.pathname === "/healthz") return health(ctx);
   if (req.method === "POST" && url.pathname === "/register") return register(ctx);
@@ -87,7 +96,7 @@ async function handle(
 }
 
 function instanceRoute(ctx: RouteContext, claudeId: string, sub: string): void {
-  const { req, res, registry, inbox, body, url } = ctx;
+  const { req, res, registry, inbox, waiters, body, url } = ctx;
   const rec = registry.get(claudeId);
   if (!rec && req.method !== "DELETE") {
     return sendJson(res, 404, { error: `unknown claude_id: ${claudeId}` });
@@ -96,9 +105,25 @@ function instanceRoute(ctx: RouteContext, claudeId: string, sub: string): void {
   if (sub === "" && req.method === "GET") {
     return sendJson(res, 200, rec);
   }
+  if (sub === "" && req.method === "PATCH") {
+    const payload = body as { idle?: boolean } | undefined;
+    if (payload && typeof payload.idle === "boolean") {
+      registry.setIdle(claudeId, payload.idle);
+    }
+    return sendJson(res, 200, registry.get(claudeId));
+  }
   if (sub === "" && req.method === "DELETE") {
     const removed = registry.unregister(claudeId);
     return sendJson(res, removed ? 200 : 404, { ok: removed });
+  }
+  if (sub === "/events" && req.method === "GET") {
+    const requested = parseIntOrUndefined(url.searchParams.get("timeout"));
+    const timeoutMs = Math.min(requested ?? DEFAULT_EVENTS_TIMEOUT_MS, MAX_EVENTS_TIMEOUT_MS);
+    if (inbox.count(claudeId) > 0) {
+      return sendJson(res, 200, { type: "message", pending: inbox.count(claudeId) });
+    }
+    waiters.add(claudeId, res, timeoutMs);
+    return;
   }
   if (sub === "/messages" && req.method === "POST") {
     const payload = body as { from?: string; body?: string; kind?: MessageKind };
@@ -114,6 +139,7 @@ function instanceRoute(ctx: RouteContext, claudeId: string, sub: string): void {
     const msg = inbox.append(appendArgs);
     registry.setPendingCount(claudeId, inbox.count(claudeId));
     registry.touch(claudeId);
+    waiters.notify(claudeId, { type: "message", pending: inbox.count(claudeId) });
     return sendJson(res, 200, { id: msg.id });
   }
   if (sub === "/messages" && req.method === "GET") {

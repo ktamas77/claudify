@@ -7,6 +7,7 @@ export interface InstanceRecord {
   started_at: string;
   last_active: string;
   pending_count: number;
+  idle: boolean;
 }
 
 export type MessageKind = "task" | "note";

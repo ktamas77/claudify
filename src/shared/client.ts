@@ -174,6 +174,17 @@ export const daemon = {
   getTurn(claudeId: string, index: number): Promise<{ turn: unknown }> {
     return call("GET", `/instances/${claudeId}/turn/${index}`);
   },
+  setIdle(claudeId: string, idle: boolean): Promise<unknown> {
+    return call("PATCH", `/instances/${claudeId}`, { idle });
+  },
+  events(
+    claudeId: string,
+    timeoutMs: number,
+  ): Promise<{ type: "message"; pending: number } | null> {
+    return call("GET", `/instances/${claudeId}/events?timeout=${timeoutMs}`, undefined, {
+      timeoutMs: timeoutMs + 5_000,
+    }) as Promise<{ type: "message"; pending: number } | null>;
+  },
 };
 
 export { DaemonError };

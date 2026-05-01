@@ -19,7 +19,10 @@ export async function runStopHook(): Promise<void> {
     if (!data.claude_id) return;
     const peeked = await daemon.peekInbox(data.claude_id);
     const tasks = peeked.filter((m) => m.kind === "task");
-    if (tasks.length === 0) return;
+    if (tasks.length === 0) {
+      await daemon.setIdle(data.claude_id, true).catch(() => undefined);
+      return;
+    }
     const drained = await daemon.drainInbox(data.claude_id);
     const output: BlockingHookOutput = {
       decision: "block",

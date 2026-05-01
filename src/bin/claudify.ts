@@ -13,14 +13,21 @@ import { runHistory } from "../cli/history.js";
 import { runSearch } from "../cli/search.js";
 import { runStatus } from "../cli/status.js";
 import { runStatusLine } from "../cli/statusline.js";
+import { runChild } from "../cli/run.js";
 
 const HELP = `claudify — local side-channel between Claude Code sessions
 
 Usage:
   claudify <command> [args]
 
+Run claude with realtime inbox delivery (recommended):
+  run [claude args...]    launch \`claude\` inside a PTY supervisor that injects
+                          inbox messages the moment they arrive, even when claude
+                          is fully idle. Set CLAUDIFY_CLAUDE_BIN to override the
+                          claude binary used (default: \`claude\` on PATH).
+
 Setup:
-  install                 patch ~/.claude/settings.json with hooks + MCP + statusline
+  install                 patch hooks + MCP + statusline into your Claude config
   uninstall               remove the patch
 
 Inspect:
@@ -28,10 +35,10 @@ Inspect:
   whoami                  show this shell's parent claude session
   status                  daemon health + instance count
 
-Send / read:
-  send <id> <msg...>      send a task message to another session (--note for silent)
-  history <id> [-n N]     read recent turns (default 20; --raw for unredacted)
-  search <id> <query>     search a session's transcript
+Send / read (target = claude_id or folder basename):
+  send <target> <msg...>  send a task message (--note for silent delivery)
+  history <target> [-n N] read recent turns (default 20; --raw for unredacted)
+  search <target> <query> search a session's transcript
 
 Internal (used by Claude Code):
   daemon                  run the foreground daemon
@@ -48,6 +55,9 @@ async function main(): Promise<void> {
     case "--help":
     case "-h":
       console.log(HELP);
+      return;
+    case "run":
+      await runChild(rest);
       return;
     case "daemon":
       await runDaemon();

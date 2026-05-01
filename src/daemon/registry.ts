@@ -46,6 +46,7 @@ export class Registry {
         rec.claude_pid = args.claude_pid;
         rec.cwd = args.cwd;
         rec.transcript_path = args.transcript_path;
+        rec.idle = false;
         this.byClaudePid.set(args.claude_pid, existing);
         this.persist();
         this.writeSessionFile(rec);
@@ -62,6 +63,7 @@ export class Registry {
       started_at: nowIso(),
       last_active: nowIso(),
       pending_count: 0,
+      idle: false,
     };
     this.byId.set(claudeId, rec);
     this.bySession.set(args.session_id, claudeId);
@@ -97,6 +99,14 @@ export class Registry {
     this.writeSessionFile(rec);
   }
 
+  setIdle(claudeId: string, idle: boolean): void {
+    const rec = this.byId.get(claudeId);
+    if (!rec) return;
+    rec.idle = idle;
+    rec.last_active = nowIso();
+    this.persist();
+  }
+
   private uniqueId(): string {
     for (let i = 0; i < 64; i++) {
       const id = generateClaudeId();
@@ -110,8 +120,20 @@ export class Registry {
     if (!existsSync(paths.registry)) return;
     try {
       const raw = readFileSync(paths.registry, "utf8");
-      const parsed = JSON.parse(raw) as { instances: InstanceRecord[] };
-      for (const rec of parsed.instances ?? []) {
+      const parsed = JSON.parse(raw) as { instances: Partial<InstanceRecord>[] };
+      for (const partial of parsed.instances ?? []) {
+        if (!partial.claude_id || !partial.session_id || !partial.claude_pid) continue;
+        const rec: InstanceRecord = {
+          claude_id: partial.claude_id,
+          session_id: partial.session_id,
+          claude_pid: partial.claude_pid,
+          cwd: partial.cwd ?? "",
+          transcript_path: partial.transcript_path ?? "",
+          started_at: partial.started_at ?? nowIso(),
+          last_active: partial.last_active ?? nowIso(),
+          pending_count: partial.pending_count ?? 0,
+          idle: partial.idle ?? false,
+        };
         this.byId.set(rec.claude_id, rec);
         this.bySession.set(rec.session_id, rec.claude_id);
         this.byClaudePid.set(rec.claude_pid, rec.claude_id);

@@ -19,6 +19,7 @@ export async function runUserPromptSubmitHook(): Promise<void> {
     if (!existsSync(sessionFile)) return;
     const data = JSON.parse(readFileSync(sessionFile, "utf8")) as { claude_id?: string };
     if (!data.claude_id) return;
+    await daemon.setIdle(data.claude_id, false).catch(() => undefined);
     const messages = await daemon.drainInbox(data.claude_id);
     if (messages.length === 0) return;
     const output: HookOutput = {
