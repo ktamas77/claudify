@@ -1,6 +1,14 @@
 # claudify
 
-A local side-channel between [Claude Code](https://claude.com/claude-code) sessions running on the same machine. Each session gets a short ID, can list other live sessions, send them messages, read their conversation history — and, when launched through the `claudify run` supervisor, **wake up and act on incoming messages in realtime, even when fully idle.** No cloud, no network exposure, no auth.
+A local side-channel between [Claude Code](https://claude.com/claude-code) sessions running on the same machine. Each session gets a short ID, can list other live sessions, send them messages, read their conversation history — and, when launched via `claudify`, **wake up and act on incoming messages in realtime, even when fully idle.** No cloud, no network exposure, no auth.
+
+```bash
+claudify          # launch claude inside the realtime supervisor
+claudify -c       # claude -c (continue most recent session)
+claudify --resume # any other claude flag works the same
+```
+
+Anything that's not a recognized subcommand (`list`, `send`, `install`, …) is forwarded straight to the wrapped `claude` binary, so you can use `claudify` as a drop-in replacement for `claude` without aliasing or shadowing the original.
 
 > Status: v0.2 — realtime PTY supervisor + folder-name addressing + idle tracking.
 
@@ -9,11 +17,11 @@ A local side-channel between [Claude Code](https://claude.com/claude-code) sessi
 You probably run `claude` in several folders at once. They have no idea about each other. Claudify gives every session a stable identity and a realtime side channel:
 
 - **List**: which other Claudes are running, where, and for how long.
-- **Message**: hand a task to another Claude (`claudify send api-service "rerun the migration check"`) — the recipient acts on it immediately if launched via the supervisor, or on its next turn otherwise.
+- **Message**: hand a task to another Claude (`claudify send api-service "rerun the migration check"`) — the recipient acts on it immediately if launched via `claudify`, or on its next turn otherwise.
 - **Read**: peek at another instance's history (recent turns, search, fetch a specific turn).
 - **Notice**: the receiver's status line ticks up (`✉2`) when messages are waiting.
 
-Everything is purely additive. Normal `claude` flows continue to work unchanged.
+Everything is purely additive. The original `claude` binary is never modified or shadowed — `claudify` is just an alternative entrypoint that wraps it.
 
 ## How it works
 
@@ -22,8 +30,8 @@ There are two layers, and you can use either independently:
 ```
    ┌─────────────── one machine ───────────────┐
    │                                            │
-   │  ┌── claudify run (PTY supervisor) ────┐   │  ← Layer 2: realtime injection
-   │  │   ↑↓ proxy user terminal ↔ claude  │   │      (optional but recommended)
+   │  ┌── claudify (PTY supervisor) ────────┐   │  ← Layer 2: realtime injection
+   │  │   ↑↓ proxy user terminal ↔ claude  │   │      (when launched via `claudify`)
    │  │   subscribes to daemon /events      │   │
    │  │   writes "[inbox]\n" to PTY master  │   │
    │  └─┬─────────────────────────────────┬─┘   │
@@ -50,7 +58,7 @@ The daemon binds to `127.0.0.1` only. State persists to `~/.claudify/`.
 
 ### Realtime via the supervisor
 
-`claudify run` spawns `claude` inside a PTY (via `node-pty`) and proxies your terminal byte-for-byte to/from it — so it looks and feels exactly like running `claude` directly. In parallel it long-polls the daemon for new inbox messages addressed to this session. When one arrives:
+`claudify` spawns `claude` inside a PTY (via `node-pty`) and proxies your terminal byte-for-byte to/from it — so it looks and feels exactly like running `claude` directly. Any flag you pass to `claudify` (e.g. `claudify -c`, `claudify --resume <id>`) is forwarded to claude. In parallel the supervisor long-polls the daemon for new inbox messages addressed to this session. When one arrives:
 
 1. Wait for the daemon's `idle` flag on this session to be `true` (the `Stop` hook sets it when claude finishes a turn; the `UserPromptSubmit` hook clears it).
 2. Wait for ≥500ms of stdin silence (so we don't corrupt typing).
@@ -93,20 +101,34 @@ claudify install
 - `~/.claude/settings.json` — adds the four hooks and the status-line script.
 - `~/.claude.json` — adds the `claudify` MCP server under `mcpServers`.
 
-For the realtime path, alias `claude` to `claudify run`:
+After this, just use `claudify` everywhere you'd type `claude`:
 
 ```bash
-# in ~/.zshrc or ~/.bashrc
-alias claude='claudify run'
+claudify              # interactive session in the supervisor
+claudify -c           # resume the most recent session
+claudify --resume xyz # resume a specific session id
 ```
 
-Then start (or restart) any `claude` session. You'll see your ID in the status line.
+The original `claude` binary is untouched — both work side by side. Use `claudify` when you want realtime inbox delivery; use `claude` when you don't (you still get the inbox + ✉ status line, just no auto-wake).
+
+If you'd rather invoke the supervisor under a shorter name, drop a tiny script anywhere on your PATH:
+
+```bash
+mkdir -p ~/.local/bin
+cat > ~/.local/bin/clc <<'EOF'
+#!/bin/sh
+exec claudify "$@"
+EOF
+chmod +x ~/.local/bin/clc
+```
+
+Now `clc -c` is `claudify -c` is `claude -c`-with-supervisor.
 
 ```bash
 claudify uninstall   # reverses the install
 ```
 
-If `node-pty` fails to install (older toolchain), `claudify run` errors out with a fix-it message but every other command still works — you just won't get realtime injection.
+If `node-pty` fails to install (older toolchain), bare `claudify` errors out with a fix-it message but the subcommands (`claudify list`, `claudify send`, etc.) still work.
 
 ### Adding the badge to an existing status line
 
@@ -133,7 +155,8 @@ printf '%s\n' "$out"
 ## CLI
 
 ```
-claudify run [claude args...]          launch claude inside the realtime supervisor
+claudify [claude args...]              launch claude inside the realtime supervisor
+                                       (e.g. `claudify -c`, `claudify --resume <id>`)
 claudify list                          show all live Claude sessions
 claudify whoami                        this shell's parent claude (best-effort by ppid)
 claudify send <target> <message>       send a task message; target = id or folder name
@@ -141,13 +164,14 @@ claudify history <target> [-n N]       tail another session's transcript
 claudify search <target> <query>       search another session's transcript
 claudify status                        daemon health + instance count
 claudify install / uninstall           patch / unpatch ~/.claude config
-claudify daemon                        foreground daemon (used by lazy spawn)
-claudify mcp                           stdio MCP server (spawned by claude)
-claudify hook <event>                  internal: hook handler
-claudify statusline                    internal: status-line renderer
+claudify help                          show subcommand help
+claudify run [claude args...]          explicit form of the default supervisor launch
+claudify daemon / mcp / hook / statusline   internal (used by Claude Code)
 ```
 
-`CLAUDIFY_CLAUDE_BIN` overrides which binary `claudify run` launches (default: `claude` on PATH). Useful if you want to point at a specific Claude Code build without breaking the alias.
+Anything that's not a recognized subcommand from this list is treated as args for the supervisor and forwarded to claude — that's how `claudify -c` and friends work.
+
+`CLAUDIFY_CLAUDE_BIN` overrides which binary the supervisor launches (default: `claude` on PATH). Useful if you have multiple Claude Code builds installed.
 
 ### Addressing sessions: id or folder name
 
@@ -183,9 +207,9 @@ The `claudify` MCP server exposes the following inside every `claude` session. W
 Two kinds:
 
 - **task** (default) — receiver acts on the body as if you typed it. Three delivery paths, in priority order:
-  1. **Supervisor injection (realtime)** — if the receiver is launched via `claudify run`, the supervisor writes `[inbox]\n` into the PTY the moment the message arrives and the receiver is idle + not actively typing. Sub-second wake-up.
+  1. **Supervisor injection (realtime)** — if the receiver was launched via `claudify`, the supervisor writes `[inbox]\n` into the PTY the moment the message arrives and the receiver is idle + not actively typing. Sub-second wake-up.
   2. **Stop hook (between turns)** — if the receiver is _just finishing_ a turn when the message lands, the `Stop` hook blocks the stop and feeds the message in as the continuation directive.
-  3. **UserPromptSubmit (next prompt)** — if neither of the above caught it (no supervisor, fully idle), the message sits in the inbox until the user submits any prompt to that receiver, at which point it's appended as additional context for that turn.
+  3. **UserPromptSubmit (next prompt)** — if neither of the above caught it (bare `claude`, fully idle), the message sits in the inbox until the user submits any prompt to that receiver, at which point it's appended as additional context for that turn.
 - **note** — surfaces only via path #3 (next prompt). Doesn't block stops, doesn't wake the model.
 
 Inbox is at-least-once and drained on read.
@@ -229,7 +253,7 @@ Pre-commit (husky) runs `typecheck → test → lint-staged`. A broken type or f
 src/
 ├── bin/claudify.ts          # entrypoint, dispatches all subcommands
 ├── cli/
-│   ├── run.ts               # PTY supervisor (claudify run)
+│   ├── run.ts               # PTY supervisor (default `claudify` entrypoint)
 │   ├── send.ts, history.ts, search.ts, list.ts, whoami.ts, status.ts
 │   ├── install.ts, statusline.ts
 │   └── ...
@@ -252,7 +276,7 @@ src/
 - [x] Phase 3 — task-mode wake-up, `read_history` / `search_history` / `get_turn`
 - [x] Phase 4 — liveness sweep + lazy daemon autostart
 - [x] Phase 5 — folder-name addressing, sharper imperative inbox prompts
-- [x] Phase 6 — `claudify run` PTY supervisor for realtime injection
+- [x] Phase 6 — `claudify` PTY supervisor for realtime injection (with subcommand passthrough)
 - [ ] Real-world soak across many concurrent supervisor sessions
 - [ ] Reply chains: auto-set `from` when a recipient calls `send_message` after waking
 - [ ] Optional desktop notification fallback for un-supervised idle sessions

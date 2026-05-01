@@ -15,16 +15,17 @@ import { runStatus } from "../cli/status.js";
 import { runStatusLine } from "../cli/statusline.js";
 import { runChild } from "../cli/run.js";
 
-const HELP = `claudify — local side-channel between Claude Code sessions
+const HELP = `claudify — realtime side-channel for Claude Code sessions
 
-Usage:
-  claudify <command> [args]
+Default behavior:
+  claudify [claude args...]  launch \`claude\` inside the realtime PTY
+                             supervisor (inbox messages get injected the
+                             moment they arrive, even when claude is idle).
+                             E.g. \`claudify -c\` resumes the latest session.
+                             Set CLAUDIFY_CLAUDE_BIN to override the claude
+                             binary used (default: \`claude\` on PATH).
 
-Run claude with realtime inbox delivery (recommended):
-  run [claude args...]    launch \`claude\` inside a PTY supervisor that injects
-                          inbox messages the moment they arrive, even when claude
-                          is fully idle. Set CLAUDIFY_CLAUDE_BIN to override the
-                          claude binary used (default: \`claude\` on PATH).
+Subcommands:
 
 Setup:
   install                 patch hooks + MCP + statusline into your Claude config
@@ -41,19 +42,50 @@ Send / read (target = claude_id or folder basename):
   search <target> <query> search a session's transcript
 
 Internal (used by Claude Code):
+  run                     explicit form of the default supervisor launch
   daemon                  run the foreground daemon
   mcp                     run the stdio MCP server
   hook <event>            run a hook handler (session-start, session-end, …)
   statusline              produce status-line text from stdin JSON
+
+  help                    show this help (any other args forward to claude)
 `;
+
+const KNOWN_SUBCOMMANDS = new Set([
+  "install",
+  "uninstall",
+  "list",
+  "whoami",
+  "status",
+  "send",
+  "history",
+  "search",
+  "daemon",
+  "mcp",
+  "hook",
+  "statusline",
+  "run",
+  "help",
+]);
 
 async function main(): Promise<void> {
   const [, , cmd, ...rest] = process.argv;
+
+  // No args at all → launch the supervisor with no args (interactive claude).
+  if (cmd === undefined) {
+    await runChild([]);
+    return;
+  }
+  // Anything that isn't a recognized subcommand is forwarded to claude.
+  // This makes `claudify -c`, `claudify --version`, `claudify --resume <id>`
+  // work the same as `claude -c`, etc.
+  if (!KNOWN_SUBCOMMANDS.has(cmd)) {
+    await runChild([cmd, ...rest]);
+    return;
+  }
+
   switch (cmd) {
-    case undefined:
     case "help":
-    case "--help":
-    case "-h":
       console.log(HELP);
       return;
     case "run":
@@ -95,10 +127,6 @@ async function main(): Promise<void> {
     case "hook":
       await runHook(rest[0]);
       return;
-    default:
-      console.error(`unknown command: ${cmd}\n`);
-      console.error(HELP);
-      process.exitCode = 2;
   }
 }
 
