@@ -46,7 +46,11 @@ export class Registry {
         rec.claude_pid = args.claude_pid;
         rec.cwd = args.cwd;
         rec.transcript_path = args.transcript_path;
-        rec.idle = false;
+        // Re-registering at SessionStart: claude is at the prompt awaiting
+        // input — that's our definition of idle from the supervisor's POV.
+        // (UserPromptSubmit will flip it back to false the moment a real
+        // prompt is submitted, including the supervisor's [inbox] sentinel.)
+        rec.idle = true;
         this.byClaudePid.set(args.claude_pid, existing);
         this.persist();
         this.writeSessionFile(rec);
@@ -63,7 +67,8 @@ export class Registry {
       started_at: nowIso(),
       last_active: nowIso(),
       pending_count: 0,
-      idle: false,
+      // Fresh session is at the prompt awaiting first user input → idle.
+      idle: true,
     };
     this.byId.set(claudeId, rec);
     this.bySession.set(args.session_id, claudeId);
