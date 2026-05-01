@@ -1,8 +1,9 @@
 import { daemon } from "../shared/client.js";
 import { ensureDaemonRunning } from "../shared/daemon-spawn.js";
+import { resolveTargetId } from "../shared/resolve.js";
 
 export async function runSearch(args: string[]): Promise<void> {
-  const id = args[0];
+  const target = args[0];
   const query = args
     .slice(1)
     .filter((a) => !a.startsWith("--"))
@@ -14,14 +15,15 @@ export async function runSearch(args: string[]): Promise<void> {
       context = Number(args[++i]);
     }
   }
-  if (!id || !query) {
-    console.error("usage: claudify search <id> <query> [--context N]");
+  if (!target || !query) {
+    console.error("usage: claudify search <id-or-folder-name> <query> [--context N]");
     process.exitCode = 2;
     return;
   }
   await ensureDaemonRunning();
+  const claudeId = await resolveTargetId(target);
   const params: { context?: number } = {};
   if (context !== undefined) params.context = context;
-  const result = await daemon.search(id, query, params);
+  const result = await daemon.search(claudeId, query, params);
   console.log(JSON.stringify(result, null, 2));
 }

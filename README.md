@@ -102,20 +102,35 @@ printf '%s\n' "$out"
 ## CLI
 
 ```
-claudify list                   # show all live Claude sessions
-claudify whoami                 # this shell's parent claude (best-effort by ppid)
-claudify send <id> <message>    # send a message to a session from any shell
-claudify history <id> [-n N]    # tail another session's transcript
-claudify search <id> <query>    # search another session's transcript
-claudify status                 # daemon health + instance count
-claudify daemon                 # foreground daemon (used by lazy spawn)
-claudify mcp                    # stdio MCP server (spawned by claude)
-claudify hook <event>           # internal: hook handler
+claudify list                          # show all live Claude sessions
+claudify whoami                        # this shell's parent claude (best-effort by ppid)
+claudify send <target> <message>       # send a message; target is a claude_id or folder name
+claudify history <target> [-n N]       # tail another session's transcript
+claudify search <target> <query>       # search another session's transcript
+claudify status                        # daemon health + instance count
+claudify daemon                        # foreground daemon (used by lazy spawn)
+claudify mcp                           # stdio MCP server (spawned by claude)
+claudify hook <event>                  # internal: hook handler
 ```
+
+### Addressing sessions: id or folder name
+
+Anywhere a target is expected — CLI commands and MCP tools alike — you can pass either the 8-char `claude_id` or the **basename of that session's working directory**. The resolver:
+
+1. Tries an exact `claude_id` match against the live registry.
+2. Falls back to a case-insensitive match on `basename(cwd)`.
+
+```bash
+# These two are equivalent when one live session is running in /Users/me/dev/api-service
+claudify send 7k3p9q2x "rerun the migration check"
+claudify send api-service "rerun the migration check"
+```
+
+If the folder name matches more than one live session (e.g. you have `~/orgA/api` and `~/orgB/api` both running), the resolver errors out and shows you both `claude_id`s plus their full paths so you can disambiguate by id. If nothing matches, it prints all live sessions to make picking one easy.
 
 ## MCP tools
 
-The `claudify` MCP server exposes:
+The `claudify` MCP server exposes the following. Wherever a tool takes a target session, you can pass either an 8-char `claude_id` or a folder basename (see [Addressing sessions](#addressing-sessions-id-or-folder-name)).
 
 | Tool                                       | Purpose                                                                                                                                        |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |

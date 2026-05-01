@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { daemon, DaemonError } from "../shared/client.js";
 import { ensureDaemonRunning } from "../shared/daemon-spawn.js";
+import { resolveTargetId } from "../shared/resolve.js";
 import type { MessageKind } from "../shared/types.js";
 
 const TOOLS: Tool[] = [
@@ -36,7 +37,11 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        to: { type: "string", description: "Recipient claude_id (8 chars)" },
+        to: {
+          type: "string",
+          description:
+            'Recipient: 8-char claude_id, or the basename of the recipient\'s cwd (e.g. "api-service"). Folder names must resolve to exactly one live session.',
+        },
         body: { type: "string", description: "Message body" },
         kind: { type: "string", enum: ["task", "note"], default: "task" },
       },
@@ -63,7 +68,10 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string" },
+        id: {
+          type: "string",
+          description: "Target claude_id or recipient cwd basename (folder name).",
+        },
         last_n_turns: { type: "number", default: 20 },
         redact: { type: "boolean", default: true },
       },
@@ -78,7 +86,10 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string" },
+        id: {
+          type: "string",
+          description: "Target claude_id or recipient cwd basename (folder name).",
+        },
         query: { type: "string" },
         context: { type: "number", default: 1 },
       },
@@ -93,7 +104,10 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string" },
+        id: {
+          type: "string",
+          description: "Target claude_id or recipient cwd basename (folder name).",
+        },
         turn_index: { type: "number" },
       },
       required: ["id", "turn_index"],
@@ -186,15 +200,25 @@ export async function runMcpServer(): Promise<void> {
           const body = String(args.body ?? "");
           const kind = (args.kind as MessageKind | undefined) ?? "task";
           if (!to || !body) return fail("`to` and `body` are required");
-          if (to === self.claude_id) return fail("cannot send_message to yourself");
+          let targetId: string;
           try {
-            const result = await daemon.sendMessage(to, { from: self.claude_id, body, kind });
-            return ok({ delivered: true, message_id: result.id, to, kind });
+            targetId = await resolveTargetId(to);
+          } catch (err) {
+            return fail((err as Error).message);
+          }
+          if (targetId === self.claude_id) return fail("cannot send_message to yourself");
+          try {
+            const result = await daemon.sendMessage(targetId, {
+              from: self.claude_id,
+              body,
+              kind,
+            });
+            return ok({ delivered: true, message_id: result.id, to: targetId, kind });
           } catch (err) {
             if (err instanceof DaemonError && err.status === 404) {
               const live = await daemon.list();
               return fail(
-                `unknown claude_id: ${to}. Live ids: ${live.map((r) => r.claude_id).join(", ")}`,
+                `unknown claude_id: ${targetId}. Live ids: ${live.map((r) => r.claude_id).join(", ")}`,
               );
             }
             throw err;
@@ -209,29 +233,47 @@ export async function runMcpServer(): Promise<void> {
           return ok({ count: messages.length, messages });
         }
         case "read_history": {
-          const id = String(args.id ?? "");
-          if (!id) return fail("`id` required");
+          const idArg = String(args.id ?? "");
+          if (!idArg) return fail("`id` required");
+          let targetId: string;
+          try {
+            targetId = await resolveTargetId(idArg);
+          } catch (err) {
+            return fail((err as Error).message);
+          }
           const params: { last_n_turns?: number; redact?: boolean } = {};
           if (typeof args.last_n_turns === "number") params.last_n_turns = args.last_n_turns;
           else params.last_n_turns = 20;
           if (typeof args.redact === "boolean") params.redact = args.redact;
-          const result = await daemon.history(id, params);
+          const result = await daemon.history(targetId, params);
           return ok(result);
         }
         case "search_history": {
-          const id = String(args.id ?? "");
+          const idArg = String(args.id ?? "");
           const query = String(args.query ?? "");
-          if (!id || !query) return fail("`id` and `query` required");
+          if (!idArg || !query) return fail("`id` and `query` required");
+          let targetId: string;
+          try {
+            targetId = await resolveTargetId(idArg);
+          } catch (err) {
+            return fail((err as Error).message);
+          }
           const params: { context?: number } = {};
           if (typeof args.context === "number") params.context = args.context;
-          const result = await daemon.search(id, query, params);
+          const result = await daemon.search(targetId, query, params);
           return ok(result);
         }
         case "get_turn": {
-          const id = String(args.id ?? "");
+          const idArg = String(args.id ?? "");
           const turnIndex = Number(args.turn_index);
-          if (!id || !Number.isFinite(turnIndex)) return fail("`id` and `turn_index` required");
-          const result = await daemon.getTurn(id, turnIndex);
+          if (!idArg || !Number.isFinite(turnIndex)) return fail("`id` and `turn_index` required");
+          let targetId: string;
+          try {
+            targetId = await resolveTargetId(idArg);
+          } catch (err) {
+            return fail((err as Error).message);
+          }
+          const result = await daemon.getTurn(targetId, turnIndex);
           return ok(result);
         }
         default:

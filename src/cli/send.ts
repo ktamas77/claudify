@@ -1,9 +1,10 @@
 import { daemon } from "../shared/client.js";
 import { ensureDaemonRunning } from "../shared/daemon-spawn.js";
+import { resolveTargetId } from "../shared/resolve.js";
 import type { MessageKind } from "../shared/types.js";
 
 export async function runSend(args: string[]): Promise<void> {
-  const id = args[0];
+  const target = args[0];
   const rest = args.slice(1);
   let kind: MessageKind = "task";
   const bodyParts: string[] = [];
@@ -21,12 +22,13 @@ export async function runSend(args: string[]): Promise<void> {
     }
   }
   const body = bodyParts.join(" ").trim();
-  if (!id || !body) {
-    console.error("usage: claudify send <id> <message...> [--note] [--from <id>]");
+  if (!target || !body) {
+    console.error("usage: claudify send <id-or-folder-name> <message...> [--note] [--from <id>]");
     process.exitCode = 2;
     return;
   }
   await ensureDaemonRunning();
-  const result = await daemon.sendMessage(id, { from, body, kind });
-  console.log(`delivered: ${result.id} (kind=${kind})`);
+  const claudeId = await resolveTargetId(target);
+  const result = await daemon.sendMessage(claudeId, { from, body, kind });
+  console.log(`delivered: ${result.id} (to=${claudeId}, kind=${kind})`);
 }
