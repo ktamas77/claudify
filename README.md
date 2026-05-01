@@ -66,11 +66,38 @@ npm i -g @ktamas77/claudify
 claudify install
 ```
 
-`claudify install` patches your global `~/.claude/settings.json` (with a backup) to register the four hooks, the `claudify` MCP server, and the status-line script. Then start (or restart) any `claude` session and you'll see your ID in the status line.
+`claudify install` patches two files (each backed up first):
+
+- `~/.claude/settings.json` — adds the four hooks and the status-line script
+- `~/.claude.json` — adds the `claudify` MCP server under `mcpServers`
+
+Then start (or restart) any `claude` session and you'll see your ID in the status line.
 
 ```bash
 claudify uninstall   # reverses the install
 ```
+
+### Adding the badge to an existing status line
+
+If you already have a custom `statusLine` script in `~/.claude/settings.json`, `claudify install` detects it and **leaves it alone** rather than clobbering your customizations. To add the `[abc12345 · 3 peers · ✉2]` badge yourself, capture stdin once and pipe it to `claudify statusline`:
+
+```bash
+#!/bin/bash
+input=$(cat)
+
+# ... your existing parts ...
+out="$host | $model | $ctx | $folder"
+
+# Claudify badge (only renders if claudify is installed and a session is registered)
+if command -v claudify >/dev/null 2>&1; then
+  badge=$(printf '%s' "$input" | claudify statusline 2>/dev/null)
+  [ -n "$badge" ] && out="$out | $badge"
+fi
+
+printf '%s\n' "$out"
+```
+
+`claudify statusline` reads the same JSON Claude Code already pipes to your script (it needs `session_id`), prints `[id · peers · ✉N]`, and exits silently with no output if the daemon is down or the session isn't registered yet — so it's safe to leave in even when claudify isn't running.
 
 ## CLI
 

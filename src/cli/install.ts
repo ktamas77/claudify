@@ -23,6 +23,7 @@ interface HookEntry {
 }
 
 interface McpServerEntry {
+  type?: "stdio";
   command: string;
   args?: string[];
   env?: Record<string, string>;
@@ -33,39 +34,56 @@ interface StatusLineConfig {
   command: string;
 }
 
+interface ClaudeJson {
+  mcpServers?: Record<string, McpServerEntry>;
+  [k: string]: unknown;
+}
+
 const HOOK_EVENTS = ["SessionStart", "SessionEnd", "UserPromptSubmit", "Stop"] as const;
 const MCP_NAME = "claudify";
 const MARK = "claudify-managed";
 
 const SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
+const CLAUDE_JSON_PATH = join(homedir(), ".claude.json");
 
 export function runInstall(): void {
   ensureDirs();
   mkdirSync(dirname(SETTINGS_PATH), { recursive: true });
   const binPath = locateBinary();
   const settings = loadSettings();
-  backup(settings);
+  backup(SETTINGS_PATH);
   applyHooks(settings, binPath);
-  applyMcp(settings, binPath);
+  cleanStaleSettingsMcp(settings);
   applyStatusLine(settings, binPath);
   saveSettings(settings);
-  console.log(`installed claudify into ${SETTINGS_PATH}`);
-  console.log(`  binary: ${binPath}`);
-  console.log(`  backup: ${SETTINGS_PATH}.claudify-backup`);
+
+  const claudeJson = loadClaudeJson();
+  backup(CLAUDE_JSON_PATH);
+  applyMcp(claudeJson, binPath);
+  saveClaudeJson(claudeJson);
+
+  console.log(`installed claudify`);
+  console.log(`  hooks + statusLine: ${SETTINGS_PATH}`);
+  console.log(`  mcp server:         ${CLAUDE_JSON_PATH}`);
+  console.log(`  binary:             ${binPath}`);
   console.log(`Restart any open 'claude' sessions to pick up the new hooks + MCP.`);
 }
 
 export function runUninstall(): void {
-  if (!existsSync(SETTINGS_PATH)) {
-    console.log("nothing to uninstall (no settings.json)");
-    return;
+  if (existsSync(SETTINGS_PATH)) {
+    const settings = loadSettings();
+    removeHooks(settings);
+    cleanStaleSettingsMcp(settings);
+    removeStatusLine(settings);
+    saveSettings(settings);
+    console.log(`uninstalled claudify hooks + statusLine from ${SETTINGS_PATH}`);
   }
-  const settings = loadSettings();
-  removeHooks(settings);
-  removeMcp(settings);
-  removeStatusLine(settings);
-  saveSettings(settings);
-  console.log(`uninstalled claudify from ${SETTINGS_PATH}`);
+  if (existsSync(CLAUDE_JSON_PATH)) {
+    const claudeJson = loadClaudeJson();
+    removeMcp(claudeJson);
+    saveClaudeJson(claudeJson);
+    console.log(`uninstalled claudify mcp server from ${CLAUDE_JSON_PATH}`);
+  }
 }
 
 function locateBinary(): string {
@@ -82,17 +100,29 @@ function loadSettings(): ClaudeSettings {
   }
 }
 
-function backup(settings: ClaudeSettings): void {
-  if (!existsSync(SETTINGS_PATH)) return;
-  const dst = SETTINGS_PATH + ".claudify-backup";
-  if (!existsSync(dst)) {
-    copyFileSync(SETTINGS_PATH, dst);
+function loadClaudeJson(): ClaudeJson {
+  if (!existsSync(CLAUDE_JSON_PATH)) return {};
+  try {
+    return JSON.parse(readFileSync(CLAUDE_JSON_PATH, "utf8")) as ClaudeJson;
+  } catch (err) {
+    throw new Error(`failed to parse ${CLAUDE_JSON_PATH}: ${(err as Error).message}`);
   }
-  void settings;
+}
+
+function backup(path: string): void {
+  if (!existsSync(path)) return;
+  const dst = path + ".claudify-backup";
+  if (!existsSync(dst)) {
+    copyFileSync(path, dst);
+  }
 }
 
 function saveSettings(settings: ClaudeSettings): void {
   writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2) + "\n", "utf8");
+}
+
+function saveClaudeJson(claudeJson: ClaudeJson): void {
+  writeFileSync(CLAUDE_JSON_PATH, JSON.stringify(claudeJson, null, 2) + "\n", "utf8");
 }
 
 function applyHooks(settings: ClaudeSettings, binPath: string): void {
@@ -128,15 +158,23 @@ function groupIsOurs(group: HookGroup): boolean {
   return group.hooks.some((h) => h.command.includes("claudify") && h.command.includes(" hook "));
 }
 
-function applyMcp(settings: ClaudeSettings, binPath: string): void {
-  settings.mcpServers ??= {};
-  settings.mcpServers[MCP_NAME] = {
+function applyMcp(claudeJson: ClaudeJson, binPath: string): void {
+  claudeJson.mcpServers ??= {};
+  claudeJson.mcpServers[MCP_NAME] = {
+    type: "stdio",
     command: process.execPath,
     args: [binPath, "mcp"],
+    env: {},
   };
 }
 
-function removeMcp(settings: ClaudeSettings): void {
+function removeMcp(claudeJson: ClaudeJson): void {
+  if (!claudeJson.mcpServers) return;
+  delete claudeJson.mcpServers[MCP_NAME];
+  if (Object.keys(claudeJson.mcpServers).length === 0) delete claudeJson.mcpServers;
+}
+
+function cleanStaleSettingsMcp(settings: ClaudeSettings): void {
   if (!settings.mcpServers) return;
   delete settings.mcpServers[MCP_NAME];
   if (Object.keys(settings.mcpServers).length === 0) delete settings.mcpServers;
