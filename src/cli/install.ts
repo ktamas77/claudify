@@ -1,19 +1,8 @@
-import {
-  readFileSync,
-  writeFileSync,
-  existsSync,
-  copyFileSync,
-  mkdirSync,
-  renameSync,
-} from "node:fs";
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ensureDirs } from "../shared/paths.js";
-
-const LEGACY_DATA_DIR = join(homedir(), ".claudify");
-const NEW_DATA_DIR = join(homedir(), ".claudemesh");
-const LEGACY_NAME = "claudify";
 
 interface ClaudeSettings {
   hooks?: Record<string, HookGroup[]>;
@@ -58,22 +47,18 @@ const SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
 const CLAUDE_JSON_PATH = join(homedir(), ".claude.json");
 
 export function runInstall(): void {
-  migrateFromLegacy();
   ensureDirs();
   mkdirSync(dirname(SETTINGS_PATH), { recursive: true });
   const binPath = locateBinary();
   const settings = loadSettings();
   backup(SETTINGS_PATH);
-  removeLegacyHooks(settings);
   applyHooks(settings, binPath);
   cleanStaleSettingsMcp(settings);
-  removeLegacyStatusLine(settings);
   applyStatusLine(settings, binPath);
   saveSettings(settings);
 
   const claudeJson = loadClaudeJson();
   backup(CLAUDE_JSON_PATH);
-  removeLegacyMcp(claudeJson);
   applyMcp(claudeJson, binPath);
   saveClaudeJson(claudeJson);
 
@@ -82,52 +67,6 @@ export function runInstall(): void {
   console.log(`  mcp server:         ${CLAUDE_JSON_PATH}`);
   console.log(`  binary:             ${binPath}`);
   console.log(`Restart any open 'claude' sessions to pick up the new hooks + MCP.`);
-}
-
-function migrateFromLegacy(): void {
-  if (existsSync(LEGACY_DATA_DIR) && !existsSync(NEW_DATA_DIR)) {
-    try {
-      renameSync(LEGACY_DATA_DIR, NEW_DATA_DIR);
-      console.log(`migrated data dir: ${LEGACY_DATA_DIR} → ${NEW_DATA_DIR}`);
-    } catch (err) {
-      console.warn(
-        `could not migrate ${LEGACY_DATA_DIR}: ${(err as Error).message}. Move it manually if you want to keep registry/inbox state.`,
-      );
-    }
-  }
-}
-
-function removeLegacyHooks(settings: ClaudeSettings): void {
-  if (!settings.hooks) return;
-  for (const event of HOOK_EVENTS) {
-    const groups = settings.hooks[event];
-    if (!groups) continue;
-    settings.hooks[event] = groups.filter((g) => !groupIsLegacy(g));
-    if (settings.hooks[event].length === 0) delete settings.hooks[event];
-  }
-  if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
-}
-
-function groupIsLegacy(group: HookGroup): boolean {
-  return group.hooks.some((h) => h.command.includes(LEGACY_NAME) && h.command.includes(" hook "));
-}
-
-function removeLegacyMcp(claudeJson: ClaudeJson): void {
-  if (!claudeJson.mcpServers) return;
-  delete claudeJson.mcpServers[LEGACY_NAME];
-  if (Object.keys(claudeJson.mcpServers).length === 0) delete claudeJson.mcpServers;
-}
-
-function removeLegacyStatusLine(settings: ClaudeSettings): void {
-  const sl = settings.statusLine;
-  if (!sl) return;
-  if (
-    sl.type === "command" &&
-    sl.command.includes(LEGACY_NAME) &&
-    sl.command.includes("statusline")
-  ) {
-    delete settings.statusLine;
-  }
 }
 
 export function runUninstall(): void {
