@@ -280,6 +280,7 @@ src/
 - [ ] Real-world soak across many concurrent supervisor sessions
 - [ ] Reply chains: auto-set `from` when a recipient calls `send_message` after waking
 - [ ] Optional desktop notification fallback for un-supervised idle sessions
+- [ ] Inject the message body itself instead of an `[inbox]` sentinel (bracketed paste for multi-line; prepend `from <id> · ` for attribution; preserve existing path as fallback when paste mode unavailable)
 
 ## License
 
