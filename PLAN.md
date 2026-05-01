@@ -398,25 +398,30 @@ simple (one command in PATH, one MCP server entry).
 
 ## 11. Resolved decisions
 
-1. **Distribution → `bun build --compile` single binary.**
+1. **Distribution → public npm package on npmjs.com.**
 
-   `UserPromptSubmit` and `Stop` hooks fire on every prompt and every
-   turn. Cold-start latency is felt directly.
+   Published as `claudify` (or `@ktamas77/claudify` if the unscoped
+   name is taken). User installs with `npm i -g claudify`, gets a
+   `claudify` binary on PATH that dispatches every subcommand
+   (`daemon`, `mcp`, `hook <event>`, `install`, `list`, `send`, …).
 
-   | | npm-global + Node | bun single binary |
-   |---|---|---|
-   | Cold start (hook) | 100–400ms (`npx` resolution) | ~10ms |
-   | User prereqs | Node + matching version on PATH | none |
-   | settings.json paths | `npx claudify hook X` (PATH/nvm dependent) | absolute path to binary |
-   | Publish flow | `npm publish` (familiar) | per-arch build matrix (darwin-arm64/x64, linux-x64) |
-   | Update mechanism | `npm i -g` / auto-update | `brew upgrade` via Homebrew tap |
-   | Tarball size | ~kB | ~50MB (Bun runtime embedded) |
+   - One Node.js codebase (TypeScript → JS via `tsc`); no per-arch
+     build matrix, no Homebrew tap, no Apple Developer ID,
+     no Gatekeeper / `xattr` quarantine quirks.
+   - settings.json hook commands invoke the globally-installed
+     binary directly (`claudify hook session-start`), **not** `npx`.
+     This skips the `npx` resolution penalty — cold start lands
+     around ~80–120ms on a warm Node, which is acceptable for hooks
+     that fire per-prompt / per-turn but not per-keystroke.
+   - Updates: `npm i -g claudify@latest`, optionally wrapped by a
+     `claudify upgrade` subcommand.
+   - Engines pinned in `package.json` (`node >= 20`) to avoid
+     surprises on stale installs.
 
-   Hook hot-path latency tips the decision; bonus is "no Node
-   required" for users who don't otherwise have it installed.
-   Distribute primarily via Homebrew tap
-   (`brew install squidcode/tap/claudify`), with a curl-pipe-sh
-   fallback for non-Homebrew installs.
+   Bun-compiled single binary + Homebrew tap stays on the table as a
+   v2 optimisation if hook latency ever becomes a real papercut. The
+   architecture (daemon + MCP + hooks + CLI under one entrypoint) is
+   unchanged either way — only the packaging differs.
 
 2. **Daemon autostart → lazy.** First hook to find no daemon spawns
    one. Zero config, zero plist files, no review by macOS Login
