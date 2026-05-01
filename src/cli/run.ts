@@ -55,22 +55,7 @@ export async function runChild(args: string[]): Promise<void> {
 
   let child: IPty;
   try {
-    // Spawn via /bin/sh -c 'exec "$0" "$@"' rather than spawning the claude
-    // binary directly. Reason: Claude Code's binary is signed with the macOS
-    // hardened runtime, which rejects the posix_spawn attribute flags
-    // node-pty sets (SETPGROUP, USEVFORK, etc.). /bin/sh isn't hardened, so
-    // node-pty can spawn it cleanly; sh's `exec` then replaces itself with
-    // claude via execve, where hardened-runtime restrictions don't apply.
-    // This `sh -c 'exec "$0" "$@"' <bin> <args...>` pattern is shell-injection
-    // safe because <bin> and <args...> are passed as positional parameters,
-    // not interpolated into the script.
-    child = ptySpawn("/bin/sh", ["-c", 'exec "$0" "$@"', claudeBinAbs, ...args], {
-      name: "xterm-256color",
-      cols,
-      rows,
-      cwd,
-      env,
-    });
+    child = ptySpawn(claudeBinAbs, args, { name: "xterm-256color", cols, rows, cwd, env });
   } catch (err) {
     console.error(`[claudify run] failed to spawn ${claudeBinAbs}: ${(err as Error).message}`);
     console.error(
