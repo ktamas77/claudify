@@ -146,10 +146,16 @@ The `claudify` MCP server exposes the following. Wherever a tool takes a target 
 
 Two kinds:
 
-- **task** (default) — recipient's `Stop` hook blocks the stop and feeds messages in as the next prompt; also surfaces on next `UserPromptSubmit`. Effectively wakes an idle Claude.
-- **note** — surfaces only on next `UserPromptSubmit`; doesn't wake the model.
+- **task** (default) — recipient's `Stop` hook blocks the stop and injects the message body as a directive the model must act on (not just acknowledge); also surfaces on next `UserPromptSubmit`. Best at waking a Claude that is _just finishing a turn_.
+- **note** — surfaces only on next `UserPromptSubmit`; doesn't block stops, doesn't wake the model.
 
 Inbox is at-least-once and drained on read.
+
+### Timing caveat
+
+A `task` message wakes the recipient only if it arrives while the recipient is between turns (the `Stop` hook is firing). If the recipient is **already fully idle** when the message lands, no event fires — the message sits in the inbox until the user submits a new prompt to that recipient, at which point it's delivered to that turn as additional context. The `✉N` count in the status line is the cue.
+
+There's no clean way to inject input into an already-idle interactive Claude session from outside the process (TTY-injection ioctls like `TIOCSTI` are restricted on modern macOS/Linux). If you need guaranteed delivery to a stalled recipient, type any prompt in that session — the inbox drains on the next turn.
 
 ## Privacy & security
 

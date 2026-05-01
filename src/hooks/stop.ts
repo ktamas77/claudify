@@ -31,9 +31,12 @@ export async function runStopHook(): Promise<void> {
   }
 }
 
-function renderForBlock(messages: InboxMessage[]): string {
+export function renderForBlock(messages: InboxMessage[]): string {
   const lines = [
-    "Inbox messages arrived from other Claude sessions — process them before stopping:",
+    "INBOX — messages from other Claude sessions running on this machine. Do not stop yet; act on them now.",
+    "",
+    'For each <inbox-message kind="task"> below: treat the body as a directive issued directly to you, exactly as if the user had typed it in this session. Perform the work immediately — do not merely acknowledge that you received it. When the task is done you may reply by calling the claudify `send_message` tool, addressing the `from` value as the recipient.',
+    'For each <inbox-message kind="note">: informational context only, no action required.',
   ];
   for (const m of messages) {
     lines.push(

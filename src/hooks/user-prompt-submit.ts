@@ -33,8 +33,14 @@ export async function runUserPromptSubmitHook(): Promise<void> {
   }
 }
 
-function renderMessages(messages: InboxMessage[]): string {
-  const parts = ["You have inbox messages from sister Claude sessions:", ""];
+export function renderMessages(messages: InboxMessage[]): string {
+  const parts = [
+    "INBOX — messages from other Claude sessions on this machine were waiting when this prompt arrived. Process them in addition to whatever the user typed above.",
+    "",
+    'For each <inbox-message kind="task"> below: treat the body as a directive issued directly to you and perform the work immediately — do not merely acknowledge that you received it. When the task is done you may reply by calling the claudify `send_message` tool, addressing the `from` value as the recipient.',
+    'For each <inbox-message kind="note">: informational context only, no action required.',
+    "",
+  ];
   for (const m of messages) {
     parts.push(
       `<inbox-message from="${m.from}" kind="${m.kind}" at="${m.ts}">`,
