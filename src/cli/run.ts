@@ -1,4 +1,6 @@
 import type * as NodePty from "node-pty";
+import { accessSync, constants as fsConstants, statSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { daemon, DaemonError } from "../shared/client.js";
 import { ensureDaemonRunning } from "../shared/daemon-spawn.js";
 
@@ -28,15 +30,40 @@ export async function runChild(args: string[]): Promise<void> {
     return;
   }
 
-  const claudeBin = process.env.CLAUDIFY_CLAUDE_BIN ?? "claude";
+  const claudeBinName = process.env.CLAUDIFY_CLAUDE_BIN ?? "claude";
+  let claudeBinAbs: string;
+  try {
+    claudeBinAbs = resolveBin(claudeBinName);
+  } catch (err) {
+    console.error(`[claudify run] ${(err as Error).message}`);
+    console.error(
+      `  Set CLAUDIFY_CLAUDE_BIN to the absolute path of the claude binary if it's not on PATH.`,
+    );
+    process.exitCode = 127;
+    return;
+  }
+
   const cwd = process.cwd();
   const cols = process.stdout.columns ?? 80;
   const rows = process.stdout.rows ?? 24;
-  const env = { ...process.env } as { [key: string]: string };
+  const env: { [key: string]: string } = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (typeof v === "string") env[k] = v;
+  }
 
   await ensureDaemonRunning().catch(() => undefined);
 
-  const child = ptySpawn(claudeBin, args, { name: "xterm-256color", cols, rows, cwd, env });
+  let child: IPty;
+  try {
+    child = ptySpawn(claudeBinAbs, args, { name: "xterm-256color", cols, rows, cwd, env });
+  } catch (err) {
+    console.error(`[claudify run] failed to spawn ${claudeBinAbs}: ${(err as Error).message}`);
+    console.error(
+      `  This usually means the binary isn't executable or the cwd is unreadable. Try running ${claudeBinAbs} directly to see the real error.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   const wasRaw = process.stdin.isTTY ? process.stdin.isRaw : false;
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
@@ -172,4 +199,31 @@ function startSubscriber(child: IPty, lastUserKeystrokeAt: () => number): () => 
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveBin(name: string): string {
+  if (isAbsolute(name) || name.includes("/")) {
+    if (isExecutableFile(name)) return name;
+    throw new Error(`"${name}" is not an executable file`);
+  }
+  const path = process.env.PATH ?? "";
+  for (const dir of path.split(":")) {
+    if (!dir) continue;
+    const candidate = join(dir, name);
+    if (isExecutableFile(candidate)) return candidate;
+  }
+  throw new Error(
+    `could not find "${name}" on PATH (searched ${path.split(":").filter(Boolean).length} directories)`,
+  );
+}
+
+function isExecutableFile(p: string): boolean {
+  try {
+    const st = statSync(p);
+    if (!st.isFile() && !st.isSymbolicLink()) return false;
+    accessSync(p, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
