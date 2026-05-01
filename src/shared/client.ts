@@ -1,6 +1,13 @@
-import { request as httpRequest } from "node:http";
+import { request as httpRequest, Agent as HttpAgent } from "node:http";
 import { loadConfig } from "./config.js";
 import type { InstanceRecord, InboxMessage, MessageKind } from "./types.js";
+
+const keepAliveAgent = new HttpAgent({
+  keepAlive: true,
+  keepAliveMsecs: 30_000,
+  maxSockets: 8,
+  maxFreeSockets: 4,
+});
 
 class DaemonError extends Error {
   constructor(
@@ -66,6 +73,7 @@ function rawCall<T>(
         port,
         path,
         method,
+        agent: keepAliveAgent,
         headers: {
           "content-type": "application/json",
           ...(payload ? { "content-length": String(payload.length) } : {}),

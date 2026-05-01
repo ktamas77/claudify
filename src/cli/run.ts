@@ -176,6 +176,15 @@ function startSubscriber(child: IPty, lastUserKeystrokeAt: () => number): () => 
       }
     }
     while (!cancelled && claudeId !== null) {
+      // If we're already holding a pending wake we haven't been able to
+      // deliver yet (user mid-typing, session still mid-turn), don't re-poll
+      // the events endpoint — the daemon would just keep returning 200 the
+      // instant the inbox is non-empty and we'd burn through ephemeral ports
+      // in a tight loop, exhausting them with TIME_WAIT entries.
+      if (pendingWake) {
+        await sleep(INJECT_RETRY_MS);
+        continue;
+      }
       try {
         const ev = await daemon.events(claudeId, EVENTS_LONG_POLL_MS);
         if (cancelled) return;
