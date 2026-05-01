@@ -1,0 +1,69 @@
+{
+  "name": "@ktamas77/claudify",
+  "version": "0.1.0",
+  "description": "Local side-channel between Claude Code instances: discover, message, and read other claude CLI sessions on the same machine.",
+  "license": "MIT",
+  "author": "Tamas Kalman",
+  "homepage": "https://github.com/ktamas77/claudify",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ktamas77/claudify.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ktamas77/claudify/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "ipc",
+    "agent"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "claudify": "dist/bin/claudify.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"*.{json,md}\"",
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}

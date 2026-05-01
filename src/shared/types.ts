@@ -1,0 +1,47 @@
+export interface InstanceRecord {
+  claude_id: string;
+  session_id: string;
+  claude_pid: number;
+  cwd: string;
+  transcript_path: string;
+  started_at: string;
+  last_active: string;
+  pending_count: number;
+}
+
+export type MessageKind = "task" | "note";
+
+export interface InboxMessage {
+  id: string;
+  from: string;
+  to: string;
+  kind: MessageKind;
+  body: string;
+  ts: string;
+}
+
+export interface DaemonConfig {
+  port: number;
+  host: string;
+  redact: {
+    enabled: boolean;
+    line_byte_cap: number;
+  };
+  statusline: {
+    show_peers: boolean;
+    show_inbox: boolean;
+  };
+}
+
+export const DEFAULT_CONFIG: DaemonConfig = {
+  port: 7878,
+  host: "127.0.0.1",
+  redact: {
+    enabled: true,
+    line_byte_cap: 4096,
+  },
+  statusline: {
+    show_peers: true,
+    show_inbox: true,
+  },
+};
