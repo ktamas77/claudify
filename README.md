@@ -2,7 +2,7 @@
 
 A local side-channel between [Claude Code](https://claude.com/claude-code) CLI sessions running on the same machine. Each session gets a short ID, can list other live sessions, send them messages, and read their conversation history — all over a tiny localhost daemon. No cloud, no network exposure, no auth.
 
-> Status: early. The architecture is settled; the implementation is being built out from the daemon up. See the roadmap below for what works today.
+> Status: v0.1 working end-to-end on a single machine — daemon, hooks, MCP tools, status line, CLI. See the roadmap below.
 
 ## Why
 
@@ -145,10 +145,13 @@ src/
 ## Roadmap
 
 - [x] Architecture & repo scaffold (TS + ESLint + Prettier + Husky)
-- [ ] Phase 1 — daemon + register/list + status line
-- [ ] Phase 2 — MCP tools (`whoami`, `list_instances`, `send_message`, `read_inbox`)
-- [ ] Phase 3 — task-mode wake-up, `read_history` / `search_history` / `get_turn`
-- [ ] Phase 4 — liveness sweep polish, optional `launchd` autostart, tests
+- [x] Phase 1 — daemon + register/list + status line
+- [x] Phase 2 — MCP tools (`whoami`, `list_instances`, `send_message`, `read_inbox`)
+- [x] Phase 3 — task-mode wake-up, `read_history` / `search_history` / `get_turn`
+- [x] Phase 4 — liveness sweep + lazy daemon autostart
+- [ ] Real-world testing across many concurrent sessions; iterate
+- [ ] Proper test suite (smoke covers the happy path, but no unit tests yet)
+- [ ] Publish `@ktamas77/claudify` to npm
 
 ## License
 
